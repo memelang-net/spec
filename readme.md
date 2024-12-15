@@ -1,5 +1,12 @@
 # MEMELANG
 
+* Demo: https://demo.memelang.net
+* Contact: info@memelang.net
+* Python Repo: https://github.com/memelang-net/meme-sql-python
+
+
+## Basic Syntax
+
 Memelang is a notation for efficiently encoding and querying knowledge. In Memelang, the smallest unit of knowledge is a *meme*. A meme states some idea `A` has some relation `R` to some other idea `B`.
 
 ~~~
@@ -96,7 +103,7 @@ meter.height:Alice = 1/1.6 = 0.625;
 
 ## Query Operations
 
-Known memes are stored in the database where they can be queried. A query consists of an incomplete Memelang statement and returns a set of memes. Try the [Memelang query demo](//demo.memelang.net/).
+Known memes are stored in the database where they can be queried. A query consists of an incomplete Memelang statement and returns a set of memes. Try the [Memelang query demo](https://demo.memelang.net/).
 
 | Query        | Explanation                                   |
 |--------------|-----------------------------------------------|
@@ -160,4 +167,5 @@ Memelang allows OR grouping by setting statements equal to `t` followed by a num
 
 ## License
 
-Memelang is free for public use under the [Memelicense](//memelicense.net/). Patents pending. Copyright 2024 HOLTWORK LLC. Contact [info@memelang.net](mailto:info@memelang.net).
+Memelang is free for public use under the [Memelicense](https://memelicense.net/). Patents pending. Copyright 2024 HOLTWORK LLC. 
+
