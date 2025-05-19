@@ -1,171 +1,187 @@
-# MEMELANG
+# Memelang v5
 
-* Demo: https://demo.memelang.net
-* Contact: info@memelang.net
-* Python Repo: https://github.com/memelang-net/meme-sql-python
+Memelang is a concise query language for structured data, knowledge graphs, retrieval-augmented generation, and semantic data.
 
+### Memes
 
-## Basic Syntax
+A ***meme*** comprises key-value pairs separated by spaces and is analogous to a relational database row.
 
-Memelang is a notation for efficiently encoding and querying knowledge. In Memelang, the smallest unit of knowledge is a *meme*. A meme states some idea `A` has some relation `R` to some other idea `B`.
+```
+m=123 R1=A1 R2=A2 R3=A3;
+```
 
-~~~
-A.R:B = Q;
-~~~
+* ***M-identifier***: an arbitrary integer in the form `m=123`, analogous to a primary key
+* ***R-relation***: an alphanumeric key analogous to a database column
+* ***A-value***: an integer, decimal, or string analogous to a database cell value
+* Non-alphanumeric A-values are CSV-style double-quoted `="John ""Jack"" Kennedy"`
+* Memes are ended with a semicolon
+* Comments are prefixed with double forward slashes `//`
 
-A breakdown of each expression:
+```
+// Example memes for the Star Wars cast
+m=123 actor="Mark Hamill" role="Luke Skywalker" movie="Star Wars" rating=4.5;
+m=456 actor="Harrison Ford" role="Han Solo" movie="Star Wars" rating=4.6;
+m=789 actor="Carrie Fisher" role=Leia movie="Star Wars" rating=4.2;
+```
 
-| Meme Syntax | Explanation                                               |
-|-------------|-----------------------------------------------------------|
-| `A`         | The A starts the statement without punctuation.           |
-| `.R`        | The relation is preceded by a dot.                        |
-| `:B`        | The B ends the statement preceded by a colon.             |
-| `=Q`        | Where Q=1 is true and Q=0 is false.                       |
-| `;`         | The statement is closed with a semi-colon.                |
+### Queries
 
-For example, "Alice's uncle is Bob," where `A=Alice`, `R=uncle`, and `B=Bob`. Memelang encodes this relation thusly:
+Queries are partial memes with empty parts as wildcards:
+* Empty A-values retrieve all values for the specified R-relation
+* Empty R-relations retrieve all relations for the specified A-value
+* Empty R-relations and A-values (` = `) retrieve all pairs in the meme
 
-~~~
-Alice.uncle:Bob = 1;
-~~~
+```
+// Query for all movies with Mark Hamill as an actor
+actor="Mark Hamill" movie=;
 
+// Query for all relations involving Mark Hamill
+="Mark Hamill";
 
-## Relation Chains
+// Query for all relations and values from all memes relating to Mark Hamill:
+="Mark Hamill" =;
+```
 
-Memelang supports chained relations, where the relation "uncle" can be expressed as "parent’s brother."
+A-value operators:
+* String: `=` `!=`
+* Numeric: `=` `!=` `>` `>=` `<` `<=`
 
-~~~
-Alice.uncle:Bob = Alice.parent.brother:Bob;
-~~~
+```
+firstName=Joe;
+lastName!="David-Smith";
+height>=1.6;
+width<2;
+weight!=150;
+```
 
+Comma-separated values produce an ***OR*** list:
 
-## Relation Rules
+```
+// Query for (actor OR producer) = (Mark OR "Mark Hamill")
+actor,producer=Mark,"Mark Hamill"
+```
 
-To define general rules, use `==` to indicate equivalence between relations:
+R-relation operators:
+* `!` negates the relation name
 
-~~~
-.uncle == .parent.brother;
-~~~
+```
+// Query for Mark Hamill's non-acting relations
+!actor="Mark Hamill";
 
+// Query for an actor who is not Mark Hamill
+actor!="Mark Hamill";
 
-## Inverse Relations
-
-Given that Alice's uncle is Bob, then Bob's niece is Alice. This inverse relation is expressed by swapping A and B and using an apostrophe instead of a dot:
-
-~~~
-Alice.uncle:Bob = Bob'uncle:Alice;
-~~~
-
-Relation chains are inverted by inverting each relation *and* reversing their order:
-
-~~~
-'uncle == 'brother'parent;
-~~~
-
-All of this notation can be summarized as:
-
-~~~
-// Given
-.uncle == .parent.brother;
-
-// Then these statements are equivalent
-Alice.uncle:Bob = 
-  Bob'uncle:Alice = 
-  Alice.parent.brother:Bob =  
-  Bob'brother'parent:Alice;
-~~~
-
-## Range Quantities
-
-`Q` can represent decimal quantities as well as true/false. When `Q` is a quantity, `R` is a *range* relation and `B` is a *unit*.
-
-~~~
-element.range:unit = quantity;
-~~~
-
-For example, "Alice's height is 1.6 meters" is encoded:
-
-~~~
-Alice.height:meter = 1.6;
-~~~
+// Query all relations excluding actor and producer for Mark Hamill
+!actor,producer="Mark Hamill"
+```
 
 
-## Inverse Ranges
+### A-Joins
 
-The inverse of a range relation inverts the quantity to `1/Q`. Using the prior example, the inverted relation states that "one meter's height is 1/1.6 Alices."
+Open brackets `R1[R2` join memes with equal `R1` and `R2` A-values. Open brackets need **not** be closed, a semicolon closes all brackets.
 
-~~~
-Alice.height:meter = 1.6;
-Alice'height:meter = 1/1.6 = 0.625;
-meter'height:Alice = 1.6;
-meter.height:Alice = 1/1.6 = 0.625;
-~~~
+```
+// Generic example
+R1=A1 R2[R3 R4>A4 A5=;
 
-## Query Operations
+// Query for all of Mark Hamill's costars
+actor="Mark Hamill" movie[movie actor=;
 
-Known memes are stored in the database where they can be queried. A query consists of an incomplete Memelang statement and returns a set of memes. Try the [Memelang query demo](https://demo.memelang.net/).
+// Query for all movies in which both Mark Hamill and Carrie Fisher act together
+actor="Mark Hamill" movie[movie actor="Carrie Fisher";
 
-| Query        | Explanation                                   |
-|--------------|-----------------------------------------------|
-| `Alice`      | Finds all memes related to Alice.             |
-| `Alice.uncle`| Finds all of Alice's uncles.                  |
-| `.uncle:Bob` | Finds all nieces/nephews of Bob.              |
-| `Alice:Bob`  | Finds all direct relationships between them.  |
+// Query for anyone who is both an actor and a producer
+actor[producer;
 
+// Query for a second cousin: child's parent's cousin's child
+child= parent[cousin parent[child;
 
-## Quantity Comparisons
+// Join any A-Value from the present meme to that A-Value in another meme
+R1=A1 [ R2=A2
+```
 
-Comparison operators filter the preceding set according to the `Q` values. Herein, `M` and `N` denote statements such as `A.R:B`.
+Joined queries return one meme with multiple `m=` M-identifiers. Each `R=A` belongs to the preceding `m=` meme.
 
-| Query    | Explanation                                              |
-|----------|----------------------------------------------------------|
-| `M`/`M=t`| Default true, finds memes where `Q!=0`.                  |
-| `M=Qx`   | Finds memes where `Q` equals `Qx`.                       |
-| `M>Qx`   | Finds memes where `Q` is greater than `Qx`.              |
-| `M<Qx`   | Finds memes where `Q` is less than `Qx`.                 |
-| `M>=Qx`  | Finds memes where `Q` is >= `Qx`.                        |
-| `M<=Qx`  | Finds memes where `Q` is <= `Qx`.                        |
-| `M!=Qx`  | Finds memes where `Q` does NOT equal `Qx`.               |
-| `M=f`    | Finds "false" memes (`Q=0`).                             |
+```
+m=123 actor="Mark Hamill" movie="Star Wars" m=456 movie="Star Wars" actor="Harrison Ford";
+```
 
+### Variables
 
-## AND Queries
+R-relations and A-values may be certain variable symbols. Variables *cannot* be inside quotes.
 
-To perform an AND query with multiple conditions, simply separate each condition with a space. This filters for all `A` that match every query condition. For example, to find individuals whose uncle is Bob and whose height is less than 1.6 meters:
+* `@` Last matching A‑value
+* `%` Last matching R‑relation
+* `#` Current M-identifier
 
-~~~
-.uncle:Bob .height:meter<1.6
-~~~
+```
+// Join two different memes where R1 and R2 have the same A-value (equivalent to R1[R2)
+R1= m!=# R2=@;
 
-To find individuals whose uncle is Bob and height is less than 1.6 meters, but excludes those whose aunt is Cindy or who attended college:
+// Two different R-relations have the same A-value
+R1= R2=@;
 
-~~~
-.uncle:Bob .height:meter<1.6 .aunt:Cindy=f .college=f
-~~~
+// The first A-value is the second R-relation
+R1= @=A2;
 
-## GET Queries
+// The first R-relation equals the second A-value
+=A1 R2=%;
 
-By default, a query returns only the memes relevant to the search criteria. Adding `M=g` returns additional memes for the matching `A` set. For example, to also return weight:
+// The pattern is run twice (redundant)
+R1=A1 %=@;
 
-~~~
-.uncle:Bob .height:meter<1.6 .aunt:Cindy=f .college=f .weight:kilogram=g
-~~~
+// The second A-value may be Jeff or the previous A-value
+R1= R2=Jeff,@;
+```
 
-To get all memes for the matching `A` set, use `qry.all`:
+### M-Joins
 
-~~~
-.uncle:Bob .height:meter<1.6 .aunt:Cindy=f .college=f qry.all
-~~~
+Explicit joins are controlled using `m` and `#`.
 
-## OR Queries
+* `m=#` present meme (implicit default)
+* `m!=#` join to a different meme
+* `m= ` join to any meme (including the present)
+* `m=^#` (or `]`) resets `m` and `#` to the previous meme, acts as *unjoin*
 
-Memelang allows OR grouping by setting statements equal to `t` followed by a number where the number groups OR conditions. For example, to find `A` whose uncle is Bob, and whose aunt is Cindy or Diana:
+```
+// Join two different memes where R1 and R2 have the same A-value (equivalent to R1[R2)
+R1= m!=# R2=@;
 
-~~~
-.uncle:Bob .aunt:Cindy=t1 .aunt:Diana=t1
-~~~
+// Join any memes (including the present one) where R1 and R2 have the same A-value
+R1= m= R2=@;
 
-## License
+// Join two different memes, unjoin, join a third meme (equivalent statements)
+R1[R2] R3[R4;
+R1= m!=# R2=@ m=^# R3= m!=# R4=@;
 
-Memelang is free for public use under the [Memelicense](https://memelicense.net/). Patents pending. Copyright 2024 HOLTWORK LLC. 
+// Unjoins may be sequential (equivalent statements)
+R1[R2 R3[R4]] R5=;
+R1= m!=# R2=@ R3= m!=# R4=@ m=^# m=^# R5=;
+R1= m!=# R2=@ R3= m!=# R4=@ m=^# ] R5=;
+R1= m!=# R2=@ R3= m!=# R4=@ ]] R5=;
 
+// Join two different memes on R1=R2, unjoin, then join the first meme to another where R4=R5
+R1= m!=# R2=@ R3= m=^# R4= m!=# R5=@;
+
+// Query for a meta-meme, R2's A-value is R1's M-identifier
+R1=A1 m= R2=#
+```
+
+### SQL Comparisons
+
+Memelang queries are significantly shorter and clearer than equivalent SQL queries.
+
+```
+movie="Star Wars" actor= role= rating>4;
+SELECT actor, role FROM memes WHERE movie = 'Star Wars' AND rating > 4;
+
+role="Luke Skywalker","Han Solo" actor=;
+SELECT actor FROM movies WHERE role IN ('Luke Skywalker', 'Han Solo');
+
+producer,actor="Mark Hamill","Harrison Ford" movie[movie actor=
+SELECT m1.actor, m1.movie, m2.actor FROM movies m1 JOIN movies m2 ON m1.movie = m2.movie WHERE m1.actor IN ('Mark Hamill', 'Harrison Ford') or m1.producer IN ('Mark Hamill', 'Harrison Ford');
+```
+
+### About
+
+Memelang was created by [Bri Holt](https://en.wikipedia.org/wiki/Bri_Holt) and first disclosed in a [2023 U.S. Provisional Patent application](https://patents.google.com/patent/US20250068615A1). ©2025 HOLTWORK LLC. Contact [info@memelang.net](mailto:info@memelang.net).
