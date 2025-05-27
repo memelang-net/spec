@@ -1,37 +1,63 @@
-# Memelang v5
+# Memelang v6
 
-Memelang is a concise query language for structured data, knowledge graphs, retrieval-augmented generation, and semantic data.
+Memelang is the most token-efficient language for querying structured data, knowledge graphs, and retrieval-augmented generation pipelines. See the [Python GitHub repository](https://github.com/memelang-net/memesql6/).
 
-### Memes
+## Basics
 
-A ***meme*** comprises key-value pairs separated by spaces and is analogous to a relational database row.
-
-```
-m=123 R1=A1 R2=A2 R3=A3;
-```
-
-* ***M-identifier***: an arbitrary integer in the form `m=123`, analogous to a primary key
-* ***R-relation***: an alphanumeric key analogous to a database column
-* ***A-value***: an integer, decimal, or string analogous to a database cell value
-* Non-alphanumeric A-values are CSV-style double-quoted `="John ""Jack"" Kennedy"`
-* Memes are ended with a semicolon
-* Comments are prefixed with double forward slashes `//`
-
-```
+```memelang
 // Example memes for the Star Wars cast
 m=123 actor="Mark Hamill" role="Luke Skywalker" movie="Star Wars" rating=4.5;
 m=456 actor="Harrison Ford" role="Han Solo" movie="Star Wars" rating=4.6;
 m=789 actor="Carrie Fisher" role=Leia movie="Star Wars" rating=4.2;
 ```
 
-### Queries
+* A ***meme*** comprises key-value pairs separated by spaces analogous to a database row
+* A key-value ***pair*** comprises `<key_opr><key><value_opr><value>`, commonly `key=value`
+* A ***key*** is an alphanumeric string analogous to a database column
+* A ***value*** is an integer, decimal, alphanumeric string, or CSV-style quoted string; analogous to a database cell value
+* `m=id` is always the first pair in a meme; analogous to a database primary key
+* `\s+` Whitespaces collapse to a single space
+* `;` Semicolons terminate statements
+* `,` commas form ***or*** lists for both *keys* and *values*
+* `!` is an optional *key* operator that matches any keys *except* those listed
+* `=` `!=` `>` `<` `<=` `>=` are *value* operators
+* `//` Double forward slashes prefix comments
 
-Queries are partial memes with empty parts as wildcards:
-* Empty A-values retrieve all values for the specified R-relation
-* Empty R-relations retrieve all relations for the specified A-value
-* Empty R-relations and A-values (` = `) retrieve all pairs in the meme
+This EBNF formally describes the language for programatic parsing.
 
+```EBNF
+(* Memelang v6 *)
+memelang		::= { meme } ;
+meme			::= pair { div pair } [div] ';' ;
+div				::= { ( WS | comment ) } ;
+pair			::= kv_pair | join_sugar | unjoin_sugar ;
+kv_pair			::= [ [ key_opr ] key_group ] value_opr [ value_group ] ;
+key_group		::= key { ',' key } ;
+value_group		::= value { ',' value } ;
+key_opr			::= '!' ;
+value_opr		::= '=' | '!=' | '<' | '>' | '<=' | '>=' ;
+join_sugar		::= [ key_group ] '[' [ key_group ] ;
+unjoin_sugar	::= ']' { ']' } ;
+key				::= ALNUM+;
+value			::= NUM | ALNUM+ | quoted | variable ;
+variable		::= '@' ('v' | 'k' | 'm' | ALNUM+) [ ':' DIGIT+ ] ;
+quoted			::= '"' { CHAR | '""' } '"' ;
+comment			::= '//' { CHAR } '\n' ;
+WS				::= { ' ' | '\t' | '\r' | '\n' } ;
+DIGIT			::= '0'..'9' ;
+ALNUM			::= 'A'..'Z' | 'a'..'z' | DIGIT | '_' ;
+NUM				::= '-'? DIGIT+ ['.' DIGIT+];
+CHAR			::= ? any Unicode character except '"' or newline ? ;
 ```
+
+## Queries
+
+Queries are partial memes with empty parts as wildcards. All explicit pairs in the query are returned in the results.
+* Empty *value* (`key=`) matches all pairs for that *key*
+* Empty *key* (`=value`) matches all pairs for that *value*
+* Empty *key* and *value* (`=`) matches all pairs in the meme
+
+```memelang
 // Query for all movies with Mark Hamill as an actor
 actor="Mark Hamill" movie=;
 
@@ -40,49 +66,94 @@ actor="Mark Hamill" movie=;
 
 // Query for all relations and values from all memes relating to Mark Hamill:
 ="Mark Hamill" =;
-```
 
-A-value operators:
-* String: `=` `!=`
-* Numeric: `=` `!=` `>` `>=` `<` `<=`
+// Query for (actor OR producer) = (Mark OR "Mark Hamill")
+actor,producer=Mark,"Mark Hamill";
 
-```
-firstName=Joe;
-lastName!="David-Smith";
+// Value inequalities
 height>=1.6;
 width<2;
-weight!=150;
+
+// Value negation: match actors who are not Mark Hamill or Mark
+actor!="Mark Hamill",Mark;
+
+// Key negation: match all keys except actor and producer for Mark Hamill
+!actor,producer="Mark Hamill";
 ```
 
-Comma-separated values produce an ***OR*** list:
+## Variables
 
+Variables refer backward to explicit query pairs. Variables *cannot* refer forward to future pairs or refer to implicit pairs. Variables *cannot* be inside quotes.
+
+* `@v` *value* from one pair prior
+* `@k` *key* from one pair prior
+* `@keyname` *value* from last seen case-insensitive `keyname=` pair
+
+Appendding `:n` references *n* pairs prior.
+
+* `@v:2` *value* two pairs prior
+* `@k:3` *key* three pairs prior
+* `@keyname:11` *value* of `keyname=` with 10 intervening `keyname=` pairs
+
+
+```memelang
+// Two different keys have the same value
+K1= K2=@v;
+K1= K2=@K1;
+
+// Swap value into key name
+K1= @v=V2;
+K1= @K1=V2;
+
+// Swap key name into value
+=V1 K2=@k;
+
+// Variables may be used in comma lists
+K1= K2=Jeff,@v;
+K1= K2=Jeff,@K1;
+
+// A movie titled with an actor's name
+actor= year= movie=@v:2
+actor= year= movie=@actor
 ```
-// Query for (actor OR producer) = (Mark OR "Mark Hamill")
-actor,producer=Mark,"Mark Hamill"
-```
 
-R-relation operators:
-* `!` negates the relation name
+## Joins
 
-```
-// Query for Mark Hamill's non-acting relations
-!actor="Mark Hamill";
+Distinct items (actors, movies, etc.) usually occupy distinct memes with unique `m=id` identifiers. Joins match multiple memes. Joining is controlled with the `m` *key* and `@m` *value*.
 
-// Query for an actor who is not Mark Hamill
-actor!="Mark Hamill";
+* `m=@m` stay in current meme (implicit default)
+* `m!=@m` join to a different meme
+* `m= ` join to any meme (current or different)
+* `m=@m:n` *unjoin* to a prior meme
 
-// Query all relations excluding actor and producer for Mark Hamill
-!actor,producer="Mark Hamill"
-```
+Shorthand joins reduce tokens.
+* `K1[K2` is shorthand for `K1= m!=@m K2=@v:2`
+* `K1` and `K2` must have the same value domain (person, book, year, etc.)
+* `]` is shorthand for `m=@m:2`, which unjoins to the prior meme
+* `]]` is shorthand for `m=@m:3`, which unjoins to two memes prior
 
 
-### A-Joins
+```memelang
+// Join any memes where K1 and K2 have the same value
+K1= m= K2=@v:2;
 
-Open brackets `R1[R2` join memes with equal `R1` and `R2` A-values. Open brackets need **not** be closed, a semicolon closes all brackets.
+// Join two different memes, unjoin, join a third meme
+K1= m!=@m K2=@v:2 m=@m:2 K3= m!=@m K4=@v:2;
 
-```
-// Generic example
-R1=A1 R2[R3 R4>A4 A5=;
+// Unjoins may be sequential
+K1= m!=@m K2=@v:2 K3= m!=@m K4=@v:2 m=@m:3 K5=;
+
+// Join two different memes on K1=K2, unjoin, then join the first meme to another where K4=K5
+K1= m!=@m K2=@v:2 K3= m=@m:2 K4= m!=@m K5=@v:2;
+
+// Query for a meta-meme, K2's value is K1's meme ID
+K1=V1 m= K2=@m;
+
+// Query for all of Mark Hamill's costars
+actor="Mark Hamill" movie= m!=@m movie=@v:2 actor=;
+
+// Generic shorthand example
+K1=V1 K2[K3 K4>V4 K5=;
 
 // Query for all of Mark Hamill's costars
 actor="Mark Hamill" movie[movie actor=;
@@ -96,92 +167,47 @@ actor[producer;
 // Query for a second cousin: child's parent's cousin's child
 child= parent[cousin parent[child;
 
-// Join any A-Value from the present meme to that A-Value in another meme
-R1=A1 [ R2=A2
+// Keys omitted, joins any value from the present meme to that value in another meme
+K1=V1 [ K2=V2;
+
+// Join two different memes, unjoin, join a third meme
+K1[K2 K3= ] K4[K5;
+
+// Unjoins may be sequential
+K1[K2 K3[K4 K5= ]] K6=;
 ```
 
-Joined queries return one meme with multiple `m=` M-identifiers. Each `R=A` belongs to the preceding `m=` meme.
+Joined queries return combined memes where each pair belongs to the preceding `m=` meme.
 
-```
+```memelang
 m=123 actor="Mark Hamill" movie="Star Wars" m=456 movie="Star Wars" actor="Harrison Ford";
+m=123 actor="Mark Hamill" movie="Star Wars" m=789 movie="Star Wars" actor="Carrie Fisher";
 ```
 
-### Variables
+## Pitfalls
 
-R-relations and A-values may be certain variable symbols. Variables *cannot* be inside quotes.
+* Use spaces between pairs `title= author= year=` not `title=author=year=`
+* Exclude spaces in comma lists `X,"Y",Z` not `X, "Y", Z`
+* After `[` or `m!=@m`, avoid redundant distinct conditionals like `actor!=@actor`
+* Use correct variable depth `movie= m!=@m movie=@v:2` not `movie= m!=@m movie=@v`
+* After a join, at least one variable must reference the prior meme `movie= m!=@m movie=@v:2 actor=` not `movie= m!=@m actor=`
+* The correct join shorthand is `K1[K2` not `K1[K2=@v` not `K1[K2=X` not `K1[ K2` not `K1=[K2`
+* Join only comparable domains such as `actor[director` not `actor[year`
+* Variables only reference earlier explicit query pairs such as `birthplace= person="Mark Hamill" m!=@m place=@birthplace;` not `person="Mark Hamill" m!=@m place=@birthplace;`
 
-* `@` Last matching A‑value
-* `%` Last matching R‑relation
-* `#` Current M-identifier
 
-```
-// Join two different memes where R1 and R2 have the same A-value (equivalent to R1[R2)
-R1= m!=# R2=@;
-
-// Two different R-relations have the same A-value
-R1= R2=@;
-
-// The first A-value is the second R-relation
-R1= @=A2;
-
-// The first R-relation equals the second A-value
-=A1 R2=%;
-
-// The pattern is run twice (redundant)
-R1=A1 %=@;
-
-// The second A-value may be Jeff or the previous A-value
-R1= R2=Jeff,@;
-```
-
-### M-Joins
-
-Explicit joins are controlled using `m` and `#`.
-
-* `m=#` present meme (implicit default)
-* `m!=#` join to a different meme
-* `m= ` join to any meme (including the present)
-* `m=^#` (or `]`) resets `m` and `#` to the previous meme, acts as *unjoin*
-
-```
-// Join two different memes where R1 and R2 have the same A-value (equivalent to R1[R2)
-R1= m!=# R2=@;
-
-// Join any memes (including the present one) where R1 and R2 have the same A-value
-R1= m= R2=@;
-
-// Join two different memes, unjoin, join a third meme (equivalent statements)
-R1[R2] R3[R4;
-R1= m!=# R2=@ m=^# R3= m!=# R4=@;
-
-// Unjoins may be sequential (equivalent statements)
-R1[R2 R3[R4]] R5=;
-R1= m!=# R2=@ R3= m!=# R4=@ m=^# m=^# R5=;
-R1= m!=# R2=@ R3= m!=# R4=@ m=^# ] R5=;
-R1= m!=# R2=@ R3= m!=# R4=@ ]] R5=;
-
-// Join two different memes on R1=R2, unjoin, then join the first meme to another where R4=R5
-R1= m!=# R2=@ R3= m=^# R4= m!=# R5=@;
-
-// Query for a meta-meme, R2's A-value is R1's M-identifier
-R1=A1 m= R2=#
-```
-
-### SQL Comparisons
+## SQL Comparisons
 
 Memelang queries are significantly shorter and clearer than equivalent SQL queries.
 
-```
-movie="Star Wars" actor= role= rating>4;
-SELECT actor, role FROM memes WHERE movie = 'Star Wars' AND rating > 4;
+```memelang
+actor= role="Luke Skywalker","Han Solo" rating>4;
+SELECT actor FROM movies WHERE role IN ('Luke Skywalker', 'Han Solo') AND rating > 4;
 
-role="Luke Skywalker","Han Solo" actor=;
-SELECT actor FROM movies WHERE role IN ('Luke Skywalker', 'Han Solo');
-
-producer,actor="Mark Hamill","Harrison Ford" movie[movie actor=
-SELECT m1.actor, m1.movie, m2.actor FROM movies m1 JOIN movies m2 ON m1.movie = m2.movie WHERE m1.actor IN ('Mark Hamill', 'Harrison Ford') or m1.producer IN ('Mark Hamill', 'Harrison Ford');
+producer,actor="Mark Hamill","Harrison Ford" movie[movie actor=;
+SELECT m1.actor, m1.movie, m2.actor FROM movies m1 JOIN movies m2 ON m1.movie = m2.movie WHERE m1.producer IN ('Mark Hamill', 'Harrison Ford') AND m1.actor IN ('Mark Hamill', 'Harrison Ford');
 ```
 
-### About
+## Credits
 
-Memelang was created by [Bri Holt](https://en.wikipedia.org/wiki/Bri_Holt) and first disclosed in a [2023 U.S. Provisional Patent application](https://patents.google.com/patent/US20250068615A1). ©2025 HOLTWORK LLC. Contact [info@memelang.net](mailto:info@memelang.net).
+Memelang was created by [Bri Holt](https://en.wikipedia.org/wiki/Bri_Holt) in a [2023 U.S. Provisional Patent application](https://patents.google.com/patent/US20250068615A1). ©2025 HOLTWORK LLC. Contact [info@memelang.net](mailto:info@memelang.net).
