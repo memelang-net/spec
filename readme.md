@@ -25,38 +25,28 @@ m=302 place="Burbank, CA" population=105000 climate=Mediterranean foundedyear=18
 
 ## Basics
 
-A ***meme*** comprises key-value pairs
-* Analogous to a database row
+A ***meme*** comprises key-value pairs, like a database row
 * `\s+` whitespaces separate pairs
-* `m=id` starting pair (analogous to a primary key)
+* `m=id` starting pair (like a primary key)
 * `;` terminating semicolon
 
 A key-value ***pair*** comprises four parts
-* ***Key operator*** (optional)
-	* `!` negates the key name
-* ***Key*** (optional)
-	* Alphanumeric string
-	* Analogous to a database column
-	* Empty *key* is a query wildcard
-	* Comma-separated list is an OR query
-* ***Value operator*** (required)
-	* `=` `!=` `>` `<` `<=` or `>=` 
-* ***Value*** (optional)
-	* Integer, float, unquoted alphanumeric string, or CSV-style quoted string
-	* Empty *value* is a query wildcard
-	* Comma-separated list is an OR query
-* No whitespaces between keys, values, operators, or commas in one pair
-* Examples `K1<=V1` `K1,K2=V1` `K1=` `=V1,"val ""too"" two"` `=`
+* ***Key operator*** is *empty* or `!` (negates the key name)
+* ***Key*** is *empty*, alphanumeric string, or comma-separated OR-list (like a database column)
+* ***Value operator*** must be `=` `!=` `>` `<` `<=` or `>=` 
+* ***Value*** is *empty*, integer, float, alphanumeric string, CSV-style quoted string, or comma-separated OR-list
+* No whitespaces between keys/values/operators/commas in one pair
 
 A ***comment*** is prefixed with double forward slashes `//`
 
-
 ## Queries
 
-Queries are partial memes with empty parts as wildcards. All query pairs are returned in the results.
+Queries are partial memes. Empty parts are wildcards. Each query pair is returned in the result.
 * Empty *value* (`K1=`) matches all pairs for that *key*
 * Empty *key* (`=V1`) matches all pairs for that *value*
 * Empty *key* and *value* (`=`) matches all pairs in the meme
+* Comma-separated *keys* match any listed *key*
+* Comma-separated *values* match any listed *value*
 * The `!` key operator negates all *keys* in the list
 * The `!=` value operator negates all *values* in the list
 
@@ -68,18 +58,19 @@ actor="Mark Hamill" movie=;
 // Query for all relations and values from all memes relating to Mark Hamill:
 ="Mark Hamill" =;
 
-// Query for (actor OR role) = ("Luke Skywalker" OR "Mark Hamill")
-actor,role="Luke Skywalker","Mark Hamill" movie=;
-
 // Value inequalities
 population>100000 place=;
 rating>=4.3 rating<=4.7 actor= role=;
 
-// Negation
+// OR lists
+K1,K2=V1,V2		// key= (K1 or K2) and value= (V1 or V2)
 K1,K2!=V1,V2	// key= (K1 or K2) and value!=(V1 or V2)
 !K1,K2=V1,V2	// key!=(K1 or K2) and value= (V1 or V2)
 !K1,K2!=V1,V2	// key!=(K1 or K2) and value!=(V1 or V2)
 !K1,K2>V1		// key!=(K1 or K2) and value> V1
+
+// Query for (actor OR role) = ("Luke Skywalker" OR "Mark Hamill")
+actor,role="Luke Skywalker","Mark Hamill" movie=;
 
 // Query for actors who are not Mark Hamill or Carrie Fisher
 actor!="Mark Hamill","Carrie Fisher" role= movie=;
@@ -93,7 +84,7 @@ m=100 actor="Mark Hamill" movie="Star Wars";
 
 ## Simple Joins
 
-Distinct items (actors, movies, etc.) usually occupy distinct memes with unique `m=id` identifiers. Joins match multiple memes. Using `K1[K2` joins a first meme to a second meme where the value of `K1` equals the value of `K2`. *No spaces* between the keys and brackets. *No need to close brackets* a semicolon closes all brackets. Only join keys with similar values like `actor[actor` `actor[person` *not* dissimilar values like `actor[birthyear` `role[place`.
+Distinct items (actors, movies, etc.) usually occupy distinct memes with unique `m=id` identifiers. Joins match multiple memes. Using `K1[K2` joins a first meme to a second meme where the value of `K1` equals the value of `K2`. *No spaces* between the keys and brackets. *No need to close brackets*, a semicolon closes all brackets. Only join keys with similar values like `actor[actor` `actor[person` *not* dissimilar values like `actor[birthyear` `role[place`.
 
 ```memelang
 // Query for all of Mark Hamill's costars
@@ -121,7 +112,7 @@ m=100 actor="Mark Hamill" movie="Star Wars" m=102 movie="Star Wars" actor="Carri
 
 ## Variables
 
-Passing strictly left to right, each query pair pushes its matched *key* (string) and *value* (int, float, string) onto the variable stack. Rightward query pairs can back-reference prior matches. Variables *cannot* be assigned or forward-reference. Variables *cannot* be inside quotes. Variables stack until a semicolon wipes the stack. Variables are almost always used to back-reference a prior meme in a complex join (below). However they are sometimes used to back-reference a pair from the current meme.
+Passing strictly left to right, each query pair pushes its matched *key* (string) and *value* (int, float, string) onto the variable stack. Rightward query pairs can back-reference prior matches. Variables *cannot* be assigned or forward-reference. Variables *cannot* be inside quotes. Variables stack until a semicolon wipes the stack. Variables almost always back-reference a prior meme in a complex join (below). However, they occasionally back-reference a pair from the current meme.
 
 * `@v` *value* from one pair back 
 * `@k` *key* name from one pair back
@@ -171,7 +162,7 @@ K1= @K1=V2;
 
 ## Complex Joins
 
-By default, a query pair stays withn the current meme. However, after an `m` *key* query pair, the next query pair may match a different meme. Complex joins can be made using the `m` *key* and `@m` *value*. The `@m` variable is automatically populated with the current meme's `id`. 
+By default, a query pair stays within the current meme. However, after an `m` *key* query pair, the next query pair may match a different meme. Complex joins can be made using the `m` *key* and `@m` *value*. The `@m` variable is automatically populated with the current meme's `id`. 
 
 * `m=@m` and `m=@m:1` stay in current meme (implicit default)
 * `m!=@m` join to a different meme
@@ -299,12 +290,14 @@ CHAR		::= ? any Unicode character except '"' or '\n' ? ;
 * Warning `movie= m!=@m movie=@v:1`
 	* Wrong variable depth
 	* Likely meant `movie= m!=@m movie=@v:2`
-* Semantic Error `movie= m!=@m actor=@director` undefined variable `@director`
-* Semantic Warning `actor[birthplace` 
+* Warning `actor[birthplace` 
 	* Must join similar values
 	* Likely meant `actor[person birthplace=`
 	* Correct similar joins `actor[actor` `actor[person` `birthyear=@foundedyear`
 	* Incorrect dissimilar joins `actor[birthyear` `actor=@place` `rating= actor=@v`
+* Semantic Error `movie= m!=@m actor=@director`
+	* Undefined variable `@director`
+	* Likely meant `director= movie= m!=@m actor=@director`
 
 ## SQL Comparisons
 
