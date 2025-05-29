@@ -37,15 +37,15 @@ A key-value ***pair*** comprises four parts
 * ***Key*** (optional)
 	* Alphanumeric string
 	* Analogous to a database column
-	* Empty key is a query wildcard
+	* Empty *key* is a query wildcard
 	* Comma-separated list is an OR query
 * ***Value operator*** (required)
 	* `=` `!=` `>` `<` `<=` or `>=` 
-	* No spaces around operators
+	* No spaces between keys and operators
 * ***Value*** (optional)
 	* Integer, float, unquoted alphanumeric string, or CSV-style quoted string
-	* Empty key is a query wildcard
-	* Comma-seperated list is an OR query
+	* Empty *value* is a query wildcard
+	* Comma-separated list is an OR query
 * Examples `K1<=V1` `K1,K2=V1` `K1=` `=V1,"val ""too"" two"` `=`
 
 A ***comment*** is prefixed with double forward slashes `//`
@@ -55,19 +55,19 @@ A ***comment*** is prefixed with double forward slashes `//`
 ```EBNF
 (* Memelang v6 *)
 memelang	::= { meme } ;
-meme		::= term { div {div} term } {div} ';' {div} ;
+meme		::= term { div+ term } div* ';' div* ;
 div			::= WS+ | comment ;
 term		::= pair | join | unjoin ;
-pair		::= [[keyopr] keys] valopr [values] ;
+pair		::= [keyopr? keys] valopr values? ; (* no whitespaces between *)
 keys 		::= key {',' key}
 values 		::= value {',' value}
 keyopr		::= '!' ;
 valopr		::= '=' | '!=' | '<' | '>' | '<=' | '>=' ;
-join		::= [key] '[' [key] ;
+join		::= key? '[' key? ; (* no whitespaces between; no need for ']' *)
 unjoin		::= ']' {']'} ;
 key		 	::= ALNUM+ | var ;
 value		::= NUM | ALNUM+ | quoted | var ;
-var			::= '@' ('k' | 'v' | 'm' | ALNUM+) [':' DIGIT+] ;
+var			::= '@' ALNUM+ [':' DIGIT+] ;
 quoted		::= '"' ( CHAR | '""' )* '"' ;
 comment		::= '//' CHAR* ('\n' | EOF) ;
 DIGIT		::= '0'..'9' ;
@@ -122,7 +122,7 @@ m=100 actor="Mark Hamill" movie="Star Wars";
 
 ## Variables
 
-Variables backwards reference *key* names (string) or *values* (int, float, string) from prior pairs in the query. Variables *cannot* be conventionally assigned. Variables *cannot* refer to forward pairs or backward implicit pairs. Variables *cannot* be inside quotes. All variables persist until a semicolon.
+Queries are read strictly left-to-right. Variables back-reference prior query pairs' *key* names (string) or *values* (int, float, string). Variables *cannot* be assigned. Variables *cannot* refer to forward pairs or backward implicit pairs. Variables *cannot* be inside quotes. All variables persist until a semicolon.
 
 * `@v` *value* from one pair back 
 * `@k` *key* name from one pair back
@@ -159,7 +159,7 @@ role= actor= movie=@v:2;
 role= actor= movie=@role;
 
 // Variables may be used in comma lists
-role= movie=@v,"Star Wars"
+role= movie=@v,"Star Wars";
 
 // Swap value into key name (unusual)
 K1= @v=V2;
@@ -180,7 +180,11 @@ Distinct items (actors, movies, etc.) usually occupy distinct memes with unique 
 
 Shorthand `[` join reduces tokens.
 * `K1[K2` expands to the most common join `K1= m!=@m K2=@v:2`
+* The `:n` depth is measured *after* expansion, therefore `@v:2`
 * `K1` and/or `K2` may be empty, joining on any key names
+	* `K1[` expands to `K1= m!=@m =@v:2`
+	* `[K2` expands to `= m!=@m K2=@v:2`
+	* `[` expands to `= m!=@m =@v:2`
 * Only join keys with similar values (person-person or year-year)
 * *No* spaces between keys and bracket
 * *No* need to close brackets, a semicolon closes all brackets.
@@ -249,7 +253,7 @@ m=100 actor="Mark Hamill" movie="Star Wars" m=102 movie="Star Wars" actor="Carri
 ## Logic Errors 
 
 * Warning `K1[ K2` 
-	* Remove spaces between key and bracket
+	* Errant space after bracket
 	* Likely meant `K1[K2`
 * Warning `movie= movie=@v` 
 	* Missing `m=` pair in join
@@ -266,11 +270,11 @@ m=100 actor="Mark Hamill" movie="Star Wars" m=102 movie="Star Wars" actor="Carri
 * Warning `movie= m!=@m movie=@v:1`
 	* Wrong variable depth
 	* Likely meant `movie= m!=@m movie=@v:2`
-* Warning `actor[birthplace` 
+* Semantic Error `actor[birthplace` 
 	* Must join similar values
 	* Likely meant `actor[person birthplace=`
 	* Correct similar joins `actor[actor` `actor[person` `birthyear=@foundedyear`
-	* Incorrect disimilar joins `actor[birthyear` `actor=@place` `rating= actor=@v`
+	* Incorrect dissimilar joins `actor[birthyear` `actor=@place` `rating= actor=@v`
 
 ## SQL Comparisons
 
