@@ -55,16 +55,16 @@ A ***comment*** is prefixed with double forward slashes `//`
 ```EBNF
 (* Memelang v6 *)
 memelang	::= { meme } ;
-meme		::= term { div+ term } div* ';' div* ;
+meme		::= term { div+ term } [div] ';' [div] ;
 div			::= WS+ | comment ;
 term		::= pair | join | unjoin ;
-pair		::= [keyopr? keys] valopr values? ; (* no whitespaces between *)
+pair		::= [[keyopr] keys] valopr [values] ; (* no whitespaces between *)
 keys 		::= key {',' key}
 values 		::= value {',' value}
 keyopr		::= '!' ;
 valopr		::= '=' | '!=' | '<' | '>' | '<=' | '>=' ;
-join		::= key? '[' key? ; (* no whitespaces between; no need for ']' *)
-unjoin		::= ']' {']'} ;
+join		::= [key] '[' [key] ; (* no whitespaces between; no need for ']' *)
+unjoin		::= ']'+;
 key		 	::= ALNUM+ | var ;
 value		::= NUM | ALNUM+ | quoted | var ;
 var			::= '@' ALNUM+ [':' DIGIT+] ;
@@ -72,7 +72,7 @@ quoted		::= '"' ( CHAR | '""' )* '"' ;
 comment		::= '//' CHAR* ('\n' | EOF) ;
 DIGIT		::= '0'..'9' ;
 ALNUM		::= 'A'..'Z' | 'a'..'z' | DIGIT | '_' ;
-NUM		 	::= '-'? DIGIT+ ( '.' DIGIT+ )? ;
+NUM		 	::= ['-'] DIGIT+ ['.' DIGIT+] ;
 WS 			::= ' ' | '\t' | '\r' | '\n' ;
 CHAR		::= ? any Unicode character except '"' or '\n' ? ;
 ```
