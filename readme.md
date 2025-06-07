@@ -132,12 +132,14 @@ def var_get(tok):
 			return variables[name.lower()][mult*index_get(p)+offset]
 ```
 
-How the variable arrays grow while processing the query:
-```memelang
-movie="Star Wars"	// 𝑝=1; variables={'K': [['movie']], 'V': [['Star Wars']], 'movie': [['Star Wars']]}
-role=*				// 𝑝=2; variables={'K': [['movie'], ['role']], 'V': [['Star Wars'], [V1, V2, …]], 'movie': [['Star Wars']], 'role': [[V1, V2, …]]}
-*>4.5;				// 𝑝=3; variables={'K': [['movie'], ['role'], [K1, K2, …]], 'V': [['Star Wars'], [V1, V2, …], [4.5]], 'movie': [['Star Wars']], 'role': [[V1, V2, …]]}
-```
+While processing the query `movie="Star Wars" role=* *>4.5`, variable arrays grow as:
+
+| After pair          | 𝑝     | `variables`                                                                                                                              |
+| ------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `movie="Star Wars"` | 𝑝=1 | `{'K': [['movie']], 'V': [['Star Wars']], 'movie': [['Star Wars']]}`                                                                   |
+| `role=*`            | 𝑝=2 | `{'K': [['movie'], ['role']], 'V': [['Star Wars'], [V1, V2, …]], 'movie': [['Star Wars']], 'role': [[V1, V2, …]]}`                     |
+| `*>4.5;`            | 𝑝=3 | `{'K': [['movie'], ['role'], [K1, K2, …]], 'V': [['Star Wars'], [V1, V2, …], [4.5]], 'movie': [['Star Wars']], 'role': [[V1, V2, …]]}` |
+
 
 ### Forward-Indexes
 * Sigils `#` and `##` use absolute forward-indexing 𝑝
