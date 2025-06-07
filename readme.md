@@ -7,7 +7,7 @@ Memelang is an AI-optimized language for querying structured data, knowledge gra
 * Pairs separated by whitespaces `\s+`
 * Terminates with semicolon `;`
 
-### Pairs
+## Pairs
 * `<keyopr>` is either *(none)* or `!`
 * `<key>` is alphanumeric string `movie`
 * `<keyset>` is either
@@ -27,11 +27,13 @@ Memelang is an AI-optimized language for querying structured data, knowledge gra
 	* Variable (explained below)
 	* CSV-style-comma-separated OR list `Leia,"Anakin ""Ani"" Skywalker",@1`
 
-### Others
+## Others
 * `->` shorthand for `m!=@m` (below)
 * Comments start with `//` and end with `\n`
 
-### Example Memes
+## Examples
+
+### Stored Memes
 * Stored meme pairs are always certain `<key>=<value>`
 * First pair is always `m=<id>`
 
@@ -53,7 +55,7 @@ m=301 place="Chicago, IL" population=2740000 climate="Humid Continental" founded
 m=302 place="Burbank, CA" population=105000 climate=Mediterranean foundedyear=1887;
 ```
 
-### Example Queries
+### Query Memes
 * At least one pair in a query contains uncertainty
 
 ```memelang
@@ -70,7 +72,7 @@ m=110 actor="Mark Hamill" movie="Batman: Mask of the Phantasm" rating=4.7 role=J
 *="Mark Hamill" *=*;
 ```
 
-### Example OR/Negation Queries
+#### OR/Negation Query Memes
 * `!` keyopr negates all **keys** in the list
 * `!=` valopr negates all **values** in the list
 
