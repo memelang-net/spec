@@ -1,9 +1,39 @@
-# Memelang v6
+# Memelang v7
 
-Memelang is the most token-efficient language for querying structured data, knowledge graphs, and retrieval-augmented generation pipelines. See the [Python GitHub repository](https://github.com/memelang-net/memesql6/).
+Memelang is an AI-optimized language for querying structured data, knowledge graphs, and retrieval-augmented generation pipelines.
 
+## Memes
+* Comprises key-value pairs `<keyopr><keyset><valopr><valset>`
+* Pairs separated by whitespaces `\s+`
+* Terminates with semicolon `;`
 
-## Examples
+### Pairs
+* `<keyopr>` is either *(none)* or `!`
+* `<key>` is alphanumeric string `movie`
+* `<keyset>` is either
+	* Single `<key>`
+	* Single lone wildcard to match *any* key `*`
+	* Variable (explained below)
+	* CSV-style-comma-separated OR list `movie,role,@1`
+* `<valopr>` is either `=` `>` `<` `>=` `<=` `!=`
+* `<value>` is either
+	* integer `-123`
+	* or float `45.6`
+	* or unquoted alphanumeric string `Leia`
+	* or CSV-style double quoted string `"Anakin ""Ani"" Skywalker"`
+* `<valset>` is either
+	* Single `<value>`
+	* Single lone wildcard to match *any* value `*`
+	* Variable (explained below)
+	* CSV-style-comma-separated OR list `Leia,"Anakin ""Ani"" Skywalker",@1`
+
+### Others
+* `->` shorthand for `m!=@m` (below)
+* Comments start with `//` and end with `\n`
+
+### Example Memes
+* Stored meme pairs are always certain `<key>=<value>`
+* First pair is always `m=<id>`
 
 ```memelang
 m=100 actor="Mark Hamill" role="Luke Skywalker" movie="Star Wars" rating=4.5;
@@ -23,294 +53,287 @@ m=301 place="Chicago, IL" population=2740000 climate="Humid Continental" founded
 m=302 place="Burbank, CA" population=105000 climate=Mediterranean foundedyear=1887;
 ```
 
-## Basics
-
-A ***meme*** comprises key-value pairs, like a database row
-* `\s+` whitespaces separate pairs
-* `m=id` starting pair (like a primary key)
-* `;` terminating semicolon
-
-A key-value ***pair*** comprises four parts
-* ***Key operator*** is *empty* or `!` (negates the key name)
-* ***Key*** is *empty*, alphanumeric string, or comma-separated OR-list (like a database column)
-* ***Value operator*** must be `=` `!=` `>` `<` `<=` or `>=` 
-* ***Value*** is *empty*, integer, float, alphanumeric string, CSV-style quoted string, or comma-separated OR-list
-* No whitespaces between keys/values/operators/commas in one pair
-
-A ***comment*** is prefixed with double forward slashes `//`
-
-## Queries
-
-Queries are partial memes. Empty parts are wildcards. Each query pair is returned in the result.
-* Empty *value* (`K1=`) matches all pairs for that *key*
-* Empty *key* (`=V1`) matches all pairs for that *value*
-* Empty *key* and *value* (`=`) matches all pairs in the meme
-* Comma-separated *keys* match any listed *key*
-* Comma-separated *values* match any listed *value*
-* The `!` key operator negates all *keys* in the list
-* The `!=` value operator negates all *values* in the list
-
+### Example Queries
+* At least one pair in a query contains uncertainty
 
 ```memelang
-// Query for all movies with Mark Hamill as an actor
-actor="Mark Hamill" movie=;
+// All movies with Mark Hamill as an actor
+actor="Mark Hamill" movie=* rating>4 role=*;
 
-// Query for all relations and values from all memes relating to Mark Hamill:
-="Mark Hamill" =;
-
-// Value inequalities
-population>100000 place=;
-rating>=4.3 rating<=4.7 actor= role=;
-
-// OR lists
-K1,K2=V1,V2		// key= (K1 or K2) and value= (V1 or V2)
-K1,K2!=V1,V2	// key= (K1 or K2) and value!=(V1 or V2)
-!K1,K2=V1,V2	// key!=(K1 or K2) and value= (V1 or V2)
-!K1,K2!=V1,V2	// key!=(K1 or K2) and value!=(V1 or V2)
-!K1,K2>V1		// key!=(K1 or K2) and value> V1
-
-// Query for (actor OR role) = ("Luke Skywalker" OR "Mark Hamill")
-actor,role="Luke Skywalker","Mark Hamill" movie=;
-
-// Query for actors who are not Mark Hamill or Carrie Fisher
-actor!="Mark Hamill","Carrie Fisher" role= movie=;
-
-// Query for Mark Hamill for all keys except actor and role
-!actor,role="Mark Hamill" movie=;
-
-// Example response
-m=100 actor="Mark Hamill" movie="Star Wars";
+// Response
+m=100 actor="Mark Hamill" movie="Star Wars" rating=4.5 role="Luke Skywalker";
+m=110 actor="Mark Hamill" movie="Batman: Mask of the Phantasm" rating=4.7 role=Joker;
+```
+```memelang
+// All keys and values from all memes relating to Mark Hamill
+// *=* matches all pairs in the meme
+*="Mark Hamill" *=*;
 ```
 
-## Simple Joins
-
-Distinct items (actors, movies, etc.) usually occupy distinct memes with unique `m=id` identifiers. Joins match multiple memes. Using `K1[K2` joins a first meme to a second meme where the value of `K1` equals the value of `K2`. *No spaces* between the keys and brackets. *No need to close brackets*, a semicolon closes all brackets. Only join keys with similar values like `actor[actor` `actor[person` *not* dissimilar values like `actor[birthyear` `role[place`.
+### Example OR/Negation Queries
+* `!` keyopr negates all **keys** in the list
+* `!=` valopr negates all **values** in the list
 
 ```memelang
-// Query for all of Mark Hamill's costars
-actor="Mark Hamill" movie[movie actor=;
-
-// Query for the actor's birthplace
-actor[person birthplace=;
-
-// Query for people born in the year their birthplace was founded
-person= birthyear[foundedyear place=;
-
-// Query for the other movies Mark Hamill's costars have acted in
-actor="Mark Hamill" movie[movie actor= actor[actor movie=;
-
-// Query for the population of the birthplace of the Star Wars cast
-movie="Star Wars" actor[person birthplace[place population=;
+// OR–list semantics in set notation
+K1,K2=V1,V2;	// (key ∈ {K1,K2}) ∧ (value ∈ {V1,V2})
+K1,K2!=V1,V2;	// (key ∈ {K1,K2}) ∧ (value ∉ {V1,V2})
+!K1,K2=V1,V2;	// (key ∉ {K1,K2}) ∧ (value ∈ {V1,V2})
+!K1,K2!=V1,V2;	// (key ∉ {K1,K2}) ∧ (value ∉ {V1,V2})
+!K1,K2>V1;		// (key ∉ {K1,K2}) ∧ (value > V1)
 ```
-
-Joined queries return combined memes where each pair belongs to the preceding `m=` meme.
-
 ```memelang
-m=100 actor="Mark Hamill" movie="Star Wars" m=101 movie="Star Wars" actor="Harrison Ford";
-m=100 actor="Mark Hamill" movie="Star Wars" m=102 movie="Star Wars" actor="Carrie Fisher";
+// (actor OR role) = ("Luke Skywalker" OR "Mark Hamill")
+actor,role="Luke Skywalker","Mark Hamill" movie=*;
+```
+```memelang
+// Actors who are not Mark Hamill or Carrie Fisher
+actor!="Mark Hamill","Carrie Fisher" role=* movie=*;
+```
+```memelang
+// All keys, except actor and role, for Mark Hamill
+!actor,role="Mark Hamill" movie=*;
+```
+```memelang
+// FAILURES
+K1=V1=V2;		// Error: cannot chain values
+K1=*K2=*K3=X;	// Error: missing spaces between pairs
+K1=*,V1,V2;		// Error: cannot mix wildcard and commas
+actor="*";		// Warning: wildcard inside quotes is literal "*"
 ```
 
 ## Variables
+Variables let later pairs retrieve the **keys** (list of strings) and **values** (list of integers/floats/strings) returned from prior pairs.
+* Variables *cannot* be assigned.
+* Variables *cannot* future-reference.
+* Variables *cannot* reference objects or properties.
+* Variables *cannot* be inside quotes.
 
-Passing strictly left to right, each query pair pushes its matched *key* (string) and *value* (int, float, string) onto the variable stack. Rightward query pairs can back-reference prior matches. Variables *cannot* be assigned or forward-reference. Variables *cannot* be inside quotes. Variables stack until a semicolon wipes the stack. Variables almost always back-reference a prior meme in a complex join (below). However, they occasionally back-reference a pair from the current meme.
+### Variable Arrays
+Simplified variable model in python:
+```python
+variables = {'K':[],'V':[]}
 
-* `@v` *value* from one pair back 
-* `@k` *key* name from one pair back
-* `@key` *value* from last `key=` pair
-	* Case-insensitive
-	* Only stacked when query pair *key* is single true string (no wild or `!` or `,`)
+def var_add(keys: list, values: list):
+	variables['K'].append(keys)
+	variables['V'].append(values)
+	if len(keys)==1: variables.setdefault(keys[0].lower(), []).append(values)
 
-Appending `:n` references *n* pairs back. One pair back is `:1` so `@v` = `@v:1`.
+def index_get(n: str) -> int:
+	if len(n)<1: return 1
+	return int(n)
 
-* `@v:2` *value* two pairs back
-* `@k:3` *key* three pairs back
-* `@key:11` *value* of `key=` with 10 intervening `key=` pairs
-
-Examples variable values after the given pair.
-
-* `movie="Star Wars"`
-	* `@k` will be *movie*
-	* `@v` and `@movie` will be *Star Wars*
-* `movie=`
-	* `@k` will be *movie*
-	* `@v` and `@movie` will be the returned *value* like *Star Wars*
-* `="Star Wars"` 
-	* `@k` will be the returned *key* name like *movie*
-	* `@v` will be *Star Wars*
-	* `@key` not stacked due to non-string *key*
-
-
-```memelang
-// These are unusual examples of variable back-references within one meme
-
-// Actor of titular movie role
-role= movie=@v actor=;
-role= movie=@role actor=;
-role= actor= movie=@v:2;
-role= actor= movie=@role;
-
-// Variables may be used in comma lists
-role= movie=@v,"Star Wars";
-
-// Swap value into key name (very unusual)
-K1= @v=V2;
-K1= @K1=V2;
-
-// Swap key name into value (very unusual)
-=V1 K2=@k;
+def var_get(tok):
+	for sigil, mult, offset in (('#',1,-1), ('@',-1,0)):
+		if tok.startswith(sigil):
+			if tok.startswith(sigil+sigil):	return variables['K'][mult*index_get(tok[2:])+offset]
+			if tok[1:].isdigit(): 			return variables['V'][mult*index_get(tok[1:])+offset]
+			name, _, p = tok[1:].partition(':')
+			return variables[name.lower()][mult*index_get(p)+offset]
 ```
 
-## Complex Joins
+How the variable arrays grow while processing the query:
+```memelang
+movie="Star Wars"	// 𝑝=1; variables={'K': [['movie']], 'V': [['Star Wars']], 'movie': [['Star Wars']]}
+role=*				// 𝑝=2; variables={'K': [['movie'], ['role']], 'V': [['Star Wars'], [V1, V2, …]], 'movie': [['Star Wars']], 'role': [[V1, V2, …]]}
+*>4.5;				// 𝑝=3; variables={'K': [['movie'], ['role'], [K1, K2, …]], 'V': [['Star Wars'], [V1, V2, …], [4.5]], 'movie': [['Star Wars']], 'role': [[V1, V2, …]]}
+```
 
-By default, a query pair stays within the current meme. However, after an `m` *key* query pair, the next query pair may match a different meme. Complex joins can be made using the `m` *key* and `@m` *value*. The `@m` variable is automatically populated with the current meme's `id`. 
+### Forward-Indexes
+* Sigils `#` and `##` use absolute forward-indexing 𝑝
+* Forward-index 𝑝 is a pair's absolute left-to-right query position
+* Easy for AIs to count, hard for humans to maintain
+* 𝑝≥1 and 𝑝 < current pair
+* 𝑝=0 at `;` or BOF
+* 𝑝++ for every query pair (including `m` and `->` pairs below)
+* 𝑝=1 is the first pair
+* 𝑝=2 is the second pair
 
+#### Forward-Index Values
+* `#𝑝` retrieves the **values** from the 𝑝th pair
+* `#1` retrieves the **values** from the first pair 
+* `#2` retrieves the **values** from the second pair
+
+#### Forward-Index Keys
+* `##𝑝` retrieves the **keys** from the 𝑝th pair
+* `##1` retrieves the **keys** from the first pair
+* `##2` retrieves the **keys** from the second pair
+
+#### Forward-Index Keyname Values
+* `#keyname:𝑝` retrieves the **values** from the 𝑝th `keyname` pair
+* `#keyname` and `#keyname:1` retrieve the **values** from the first `keyname` pair
+* *Only* populates when query **keys** is a single string (no `*` `!` `,`)
+* Case-insensitive
+
+### Backward-Indexes
+* Sigils `@` and `@@` use relative backward-indexing 𝑞
+* Backward-index 𝑞 counts backward from the current pair's query position 𝑞 = 𝑝₂ − 𝑝₁
+* Harder for AIs to count, easier for humans to maintain
+* 𝑞≥1 and 𝑞≤𝑝-1
+* 𝑞=0 is current pair (*illegal*)
+* 𝑞++ for every query pair back (including `m` and `->` pairs below)
+* 𝑞=1 is the first pair back
+* 𝑞=2 is the second pair back
+
+#### Backward-Index Values
+* `@𝑞` retrieves the **values** from the 𝑞th pair back
+* `@1` retrieves the **values** from the first pair back 
+* `@2` retrieves the **values** from the second pair back
+
+#### Backward-Index Keys
+* `@@𝑞` retrieves the **keys** from the 𝑞th pair back
+* `@@1` retrieves the **keys** from the first pair back
+* `@@2` retrieves the **keys** from the second pair back
+
+#### Backward-Index Keyname Values
+* `@keyname:𝑞` retrieves the **values** from the 𝑞th prior `keyname` pair
+* `@keyname` and `@keyname:1` retrieve the **values** from the last `keyname` pair
+* *Only* populates when query **keys** is a single string (no `*` `!` `,`)
+* Case-insensitive
+
+### Example Variables
+Variables primarily retrieve prior pairs in joins (section below). However, variables occasionally retrieve pairs from the current meme (expert only, avoid).
+
+```memelang
+// Titular roles whose value equals the movie title
+// Every variable retrieves role=*
+role=* actor=* movie=@role;
+role=* actor=* movie=#role;
+role=* actor=* movie=@2;
+role=* actor=* movie=#1;
+actor=* role=* movie=@role;
+actor=* role=* movie=#role;
+actor=* role=* movie=@1;
+actor=* role=* movie=#2;
+```
+```memelang
+// Variable in comma list
+role=* movie=@1,"Star Wars";
+```
+```memelang
+// Variable swap value into key name
+K1=* @1=V2; // @1 must be alphanumeric
+K1=* @K1=V2;
+```
+```memelang
+// Variable swap key name into value
+*=V1 K2=@@1;
+*=V1 K2=##1;
+```
+```memelang
+// FAILURE
+actor="@person"; // Warning: variable inside quotes
+actor=@person; // Likely meant
+```
+
+## Joins
+Distinct items (actors, movies, etc.) usually occupy distinct memes with unique `m=id` identifiers. By default, a pair stays within the current meme. A join query matches multiple memes by specifying a pair with **key** `m`, allowing the next pair to match a different meme.
+* `m` **key** in a pair specifies which memes to join next
+* `@m` is automatically populated with the current `m=<id>`
 * `m=@m` and `m=@m:1` stay in current meme (implicit default)
-* `m!=@m` join to a different meme
-* `m= ` join to any meme (current or different)
+* `m!=@m` (shorthand `->`) join to a different meme
+* `m=*` join to any meme (current or different)
 
-Typically, immediately after an `m` pair, the following pair back-references the prior meme. In fact, `K1[K2` is shorthand for the most common join `K1= m!=@m K2=@v:2`, where `K2`'s value in the new meme is `@v:2` which back-references two pairs to `K1`'s value in prior meme (variable depth is counted *after* expansion).
-
-The `[` and `m!=@m` join to *different* memes, so trailing distinct conditionals like `actor!=@actor` are redundant and unnecessary.
+### Join Variables
+***ALWAYS*** after an `m` pair, the following pair retrieves an uncertain pair from the prior meme.
+* Preferred `@keyname`
+	* `keyname` pair ***MUST*** be explict in prior meme
+* Alternative `@2` is usually the correct **value** variable for the prior meme's last pair
+* ***ONLY*** join keys with semantically similar **values**
+	* YES `person=@author` or `birthyear=@foundedyear`
+	* NO `person=@birthyear`
+* `m!=@m` joins to *distinct* memes, so trailing distinct conditionals like `actor!=@actor` are generally redundant
 
 ```memelang
-// Query for all of Mark Hamill's costars
-actor="Mark Hamill" movie[movie actor=;
-actor="Mark Hamill" movie= m!=@m movie=@v:2 actor=;
-movie= actor="Mark Hamill" m!=@m movie=@v:3 actor=;
-actor="Mark Hamill" movie= m!=@m movie=@movie actor=;
-movie= actor="Mark Hamill" m!=@m movie=@movie actor=;
-
-// Query for the actor's birthplace
-actor[person birthplace=;
-actor= m!=@m person=@v:2 birthplace=;
-actor= m!=@m person=@actor birthplace=;
-
-// Query for people born in the year their birthplace was founded
-person= birthyear[foundedyear place=;
-person= birthyear= m!=@m foundedyear=@v:2 place=;
-person= birthyear= m!=@birthyear foundedyear=@birthyear place=;
-
-// Query for the other movies Mark Hamill's costars have acted in
-actor="Mark Hamill" movie[movie actor= actor[actor movie=;
-actor="Mark Hamill" movie= m!=@m movie=@v:2 actor= m!=@m actor=@v:2 movie=;
-actor="Mark Hamill" movie= m!=@m movie=@movie actor= m!=@m actor=@actor movie=;
-
-// Query for the population of the birthplace of the Star Wars cast
-movie="Star Wars" actor[person birthplace[place population=;
-movie="Star Wars" actor= m!=@m person=@v:2 birthplace= m!=@m place=@v:2 population=;
-movie="Star Wars" actor= m!=@m person=@actor birthplace= m!=@m place=@birthplace population=;
-
-// Inequality join: Query for cities older than Burbank and with populations smaller
-place="Burbank, CA" foundedyear= population= m!=@m population>@v:2 foundedyear<@v:4 place=;
-place="Burbank, CA" foundedyear= population= m!=@m population>@population foundedyear<@foundedyear place=;
+// The most common join is distinct
+K1=*	// pair in first meme
+m!=@m	// next pair must match a distinct meme
+K2=@K1;	// pair in second meme, where K2 and K1 share a value
+```
+```memelang
+// Wildcard m allows the current meme in the second joined meme 
+K1=*	// pair in first meme
+m=*		// next pair may match any meme
+K2=@K1;	// pair in second meme, where K2 and K1 share a value
+```
+```memelang
+// Wildcards in keys
+*=*		// every pair in first meme
+->		// (shorthand for m!=@m) next pair must match a distinct meme
+*=@2;	// pair in second meme, any key has value from first meme
 ```
 
-## Exotic Joins
+### Example Joins
+```memelang
+// All of Mark Hamill's costars - see how variables retrieve movie=* in their respective queries
+// Each variable retrieves movie=*
+actor="Mark Hamill" movie=* -> movie=@movie actor=*;
+movie=* actor="Mark Hamill" -> movie=@movie actor=*;
+actor="Mark Hamill" movie=* -> movie=@2 actor=*;
+movie=* actor="Mark Hamill" -> movie=@3 actor=*;
+actor="Mark Hamill" movie=* -> movie=#2 actor=*;
+movie=* actor="Mark Hamill" -> movie=#1 actor=*;
 
-These joins are very rare.
-
-In `K1[K2`, `K1` and/or `K2` may be empty, joining on any key names.
-* `K1[` expands to `K1= m!=@m =@v:2`
-* `[K2` expands to `= m!=@m K2=@v:2`
-* `[` expands to `= m!=@m =@v:2`
-
-Brackets need not be closed. However, the optional shorthand `]` *unjoins* so the query may start new joins from an earlier meme. The number of unjoins must be less than number of joins; only unjoin *after* a join.
-* `m=@m:n` unjoins to *n-1* memes prior
-* `]` expands to `m=@m:2`, unjoins to one meme prior
-* `]]` expands to `m=@m:3`, unjoins to two memes prior
-
-
+// Response - join queries return combined memes, each pair belongs to the preceding m=<id>
+m=100 actor="Mark Hamill" movie="Star Wars" m=101 movie="Star Wars" actor="Harrison Ford";
+m=100 actor="Mark Hamill" movie="Star Wars" m=102 movie="Star Wars" actor="Carrie Fisher";
 ```
-// Empty join keys: Query for every meme related to any value related to Mark Hamill
-actor="Mark Hamill" [ =;
-actor="Mark Hamill" = m!=@m =@v:2 =;
-
-// Query for each actor's birth place, unjoin, query for other roles in that movie 
-actor[person birthplace= ] movie[movie role=
-actor= m!=@m person=@v:2 birthplace= m=@m:2 movie= m!=@m movie=@v:2 role=
-actor= m!=@m person=@actor birthplace= m=@m:2 movie= m!=@m movie=@movie role=
+```memelang
+// People born in the year their birthplace was founded - join on int birthyear is year = foundedyear is year
+person=* birthyear=* -> foundedyear=@birthyear place=*;
+person=* birthyear=* -> foundedyear=@2 place=*;
 ```
-
-## EBNF
-
-```EBNF
-(* Memelang v6 *)
-memelang	::= { meme } ;
-meme		::= term { div+ term } [div] ';' [div] ;
-div			::= WS+ | comment ;
-term		::= pair | join | unjoin ;
-pair		::= [[keyopr] keys] valopr [values] ; (* no spaces between *)
-keys 		::= key {',' key} (* no spaces between *)
-values 		::= value {',' value} (* no spaces between *)
-keyopr		::= '!' ;
-valopr		::= '=' | '!=' | '<' | '>' | '<=' | '>=' ;
-join		::= [key] '[' [key] ; (* no spaces between; no need for ']' *)
-unjoin		::= ']'+;
-key		 	::= ALNUM+ | var ;
-value		::= NUM | ALNUM+ | quoted | var ;
-var			::= '@' ALNUM+ [':' DIGIT+] ;
-quoted		::= '"' ( CHAR | '""' )* '"' ;
-comment		::= '//' CHAR* ('\n' | EOF) ;
-DIGIT		::= '0'..'9' ;
-ALNUM		::= 'A'..'Z' | 'a'..'z' | DIGIT | '_' ;
-NUM		 	::= ['-'] DIGIT+ ['.' DIGIT+] ;
-WS 			::= ' ' | '\t' | '\r' | '\n' ;
-CHAR		::= ? any Unicode character except '"' or '\n' ? ;
+```memelang
+// Every meme related to any value related to Mark Hamill - wild join keys (expert, avoid)
+actor="Mark Hamill" *=* -> *=@2 *=*;
 ```
 
-## Syntax Errors 
-
-* Error `K1 = V1` space around value operator
-* Error `K1=V1=V2` cannot chain values
-* Error `K1=K2=K3=` missing spaces between pairs
-* Error `K1=V1, V2` space after comma
-* Error `K1, K2, K3=V1`	space after comma
-* Error `K1[K2=X` errant value `=X`
-* Error `K1=Y[K2` errant value `=Y`
-* Error `K1=[K2` errant equals
-* Error `K1[K2[K3` joins cannot chain
-
-## Logic Errors 
-
-* Warning `K1[ K2` 
-	* Errant space after bracket
-	* Likely meant `K1[K2`
-* Warning `movie= movie=@v` 
-	* Missing `m=` pair in join
-	* Likely meant `movie= m!=@m movie=@v:2`
-* Warning `actor="@v"`
-	* Variable inside quotes
-	* Likely meant `actor=@v`
-* Warning `movie= m!=@m actor=` 
-	* Missing variable reference to prior meme
-	* Likely meant `movie= m!=@m movie=@v:2 actor=`
-* Warning `movie= m!=@m movie=@v`
-	* Wrong variable depth
-	* Likely meant `movie= m!=@m movie=@v:2`
-* Warning `movie= m!=@m movie=@v:1`
-	* Wrong variable depth
-	* Likely meant `movie= m!=@m movie=@v:2`
-* Warning `actor[birthplace` 
-	* Must join similar values
-	* Likely meant `actor[person birthplace=`
-	* Correct similar joins `actor[actor` `actor[person` `birthyear=@foundedyear`
-	* Incorrect dissimilar joins `actor[birthyear` `actor=@place` `rating= actor=@v`
-* Semantic Error `movie= m!=@m actor=@director`
-	* Undefined variable `@director`
-	* Likely meant `director= movie= m!=@m actor=@director`
-
-## SQL Comparisons
-
-Memelang queries are significantly shorter and clearer than equivalent SQL queries.
-
+### Example Multi-joins
+```memelang
+// Other movies Mark Hamill's costars have acted in - multi join
+actor="Mark Hamill" movie=* -> movie=@movie actor=* -> actor=@actor movie=*;
+actor="Mark Hamill" movie=* -> movie=@2 actor=* -> actor=@2 movie=*;
 ```
-actor= role="Luke Skywalker","Han Solo" rating>4;
-SELECT actor FROM movies WHERE role IN ('Luke Skywalker', 'Han Solo') AND rating > 4;
+```memelang
+// Population of the birthplace of the Star Wars cast
+movie="Star Wars" actor=* -> person=@actor birthplace=* -> place=@birthplace population=*;
+movie="Star Wars" actor=* -> person=@2 birthplace=* -> place=@2 population=*;
+```
+```memelang
+// Cities older than Burbank and with larger populations - inequality join
+place="Burbank, CA" foundedyear=* population=* -> population>@population foundedyear<@foundedyear place=*;
+place="Burbank, CA" foundedyear=* population=* -> population>@2 foundedyear<@4 place=*; // @4 = 1887 (Burbank foundedyear)
+```
 
-person,actor="Mark Hamill","Harrison Ford" movie[movie actor=;
-SELECT m1.actor, m1.movie, m2.actor FROM movies m1 JOIN movies m2 ON m1.movie = m2.movie WHERE m1.person IN ('Mark Hamill', 'Harrison Ford') AND m1.actor IN ('Mark Hamill', 'Harrison Ford');
+### Failure Joins
+```memelang
+movie=* movie=@1; // Warning: missing m= pair in join
+movie=* -> movie=@2; // Likely meant
+```
+```memelang
+movie=* -> actor=*; // Warning: missing retrieved variable
+movie=* -> movie=@2 actor=*; // Likely meant
+```
+```memelang
+movie=*->movie=@2; // Error: missing spaces around ->
+movie=* -> movie=@2; // Likely meant
+```
+```memelang
+movie=* -> movie=@1; // Warning: wrong index - @1 retrieves -> pair
+movie=* -> movie=@2; // Likely meant
+```
+```memelang
+birthplace=* person=* -> actor=@birthplace; // Warning: joined dissimilar values - actor != birthplace
+person=* -> actor=@person birthplace=*; // Likely meant
+```
+```memelang
+movie=* -> actor=@director; // Semantic Error: undefined variable @director
+director=* movie=* -> actor=@director; // Likely meant
+```
+```memelang
+director=* movie=* -> actor=@director:2; // Semantic Error: undefined variable @director:2 - wrong index
+director=* movie=* -> actor=@director; // Likely meant
 ```
 
 ## Credits
-
-Memelang was created by [Bri Holt](https://en.wikipedia.org/wiki/Bri_Holt) in a [2023 U.S. Provisional Patent application](https://patents.google.com/patent/US20250068615A1). ©2025 HOLTWORK LLC. Contact [info@memelang.net](mailto:info@memelang.net).
+[Bri Holt](mailto:info@memelang.net) · [Patents Pending](https://patents.google.com/patent/US20250068615A1) · ©2025 HOLTWORK LLC
